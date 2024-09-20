@@ -52,6 +52,37 @@ def removeBiasISigma(image):
     return image - image_blurred
 
 
+def plotSingleResult(Zkf, Ztrue, pathname, title=None):
+
+    fig = plt.figure(figsize=(5, 5), dpi=100)
+
+    Zkfplot_N = fig.add_subplot(1, 1, 1)
+    heatmap, xedges, yedges = np.histogram2d(
+        Ztrue.flatten(), Zkf.flatten(), bins=97, range=HEATMAP_RANGE
+    )
+    heatmap = heatmap.T
+    extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
+    # vmax = np.percentile(heatmap.flatten(), 99)
+    ZkfHist = Zkfplot_N.imshow(
+        heatmap,
+        extent=extent,
+        origin="lower",
+        # , vmax=vmax, vmin=0
+    )
+    fig.colorbar(ZkfHist, ax=Zkfplot_N, fraction=0.046, pad=0.04)
+    Zkfplot_N.plot(WORKING_RANGE, WORKING_RANGE, c="white")
+    Zkfplot_N.set_xlabel("True Depth (m)")
+    Zkfplot_N.set_ylabel("Estimated Depth (m)")
+    if title is not None:
+        Zkfplot_N.set_title(title)
+
+    fig.tight_layout()
+    plt.savefig(pathname)
+    plt.close(fig)
+
+    return heatmap
+
+
 def getDepthMap(
     IrhoPlus,
     IrhoMinus,
@@ -167,7 +198,7 @@ def createLUT(ratios, Ztrue, display_LUT=False):
     Nbins = 500
     vmin = np.percentile(ratios, 1)
     vmax = np.percentile(ratios, 98)
-    
+
     ratio_bins = np.linspace(vmin, vmax, Nbins)
     idx = np.digitize(ratios, ratio_bins)
     Z_median = []
@@ -187,7 +218,7 @@ def createLUT(ratios, Ztrue, display_LUT=False):
 
 def applyLUT(ratios, LUT):
     """
-    Apply LUT to a vector 
+    Apply LUT to a vector
     """
     ratio_bins = LUT[..., 0]
     Z = LUT[..., 1]
@@ -369,7 +400,9 @@ def getHeatmapByLUT(params, filepath, indexes):
         # plt.show()
 
         for confLevel in confidenceLevels:
-            filterIdx = filterResultByConfidenceSparsity(np.ones_like(conf), conf, confLevel)
+            filterIdx = filterResultByConfidenceSparsity(
+                np.ones_like(conf), conf, confLevel
+            )
             ratios_filtered = ratios[~np.isnan(filterIdx)]
             Z_true_filtered = Z_true[~np.isnan(filterIdx)]
             Z_cal_filtered = Z_cal[~np.isnan(filterIdx)]
