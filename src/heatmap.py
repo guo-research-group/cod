@@ -5,7 +5,6 @@ from matplotlib import pyplot as plt
 import matplotlib
 import glob
 import pdb
-import cv2
 import os
 from scipy import signal
 
@@ -391,14 +390,6 @@ def getHeatmapByLUT(params, filepath, indexes):
 
         LUT = createLUT(ratios, Z_true, display_LUT=False)
 
-        # # Display LUT
-        # plt.figure(figsize=(5, 5),dpi=100)
-        # plt.plot(LUT[:, 0], LUT[:, 1], ".")
-        # plt.plot(LUT[:, 0], Z_theory(LUT[:, 0], params))
-        # plt.xlabel("$r$")
-        # plt.ylabel("Depth (m)")
-        # plt.show()
-
         for confLevel in confidenceLevels:
             filterIdx = filterResultByConfidenceSparsity(
                 np.ones_like(conf), conf, confLevel
@@ -425,8 +416,6 @@ def getHeatmapByLUT(params, filepath, indexes):
                 vmin,
                 vmax,
             )
-
-            # np.save(outputPath + f"LUT_{confLevel:.2f}", LUT_heatmap)
 
             # Filter by depth
             Z_cal_filtered_per_depth = []
@@ -460,18 +449,13 @@ def getHeatmapByLUT(params, filepath, indexes):
                 vmax,
             )
 
-    # isExist = os.path.isfile("./heatmap.pkl")
-    # if isExist:
-    #     file = open("./heatmap.pkl", "rb")
-    #     heatmpDicts = pickle.load(file)
-    #     file.close()
-    # else:
-    #     # if the file does not exist, creat one
-    #     heatmpDicts = []
+    return
 
-    # heatmpDicts.append(savedData)
-    # file = open("./heatmap.pkl", "wb")
-    # pickle.dump(heatmpDicts, file)
-    # file.close()
+
+def main():
 
     return
+
+
+if __name__ == "__main__":
+    main()
