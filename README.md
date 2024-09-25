@@ -1,6 +1,6 @@
-# DepthFromCoupledOpticalDifferentiation
+# Depth From Coupled Optical Differentiation
 
-Junjie Luo, Yuxuan Liu, Emma Alexander* and Qi Guo*
+Junjie Luo, Yuxuan Liu, [Emma Alexander](https://alexander.vision/)* and [Qi Guo](https://qiguo.org)*
 
 Elmore Family School of Electrical and Computer Engineering, Purdue University
 
