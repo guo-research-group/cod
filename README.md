@@ -48,6 +48,7 @@ After downloading and unzipping the dataset and pretrained weights, the full fol
 COD
 |   LICENSE.md
 |   README.md
+|   requirements.txt
 |   ...
 |---src
 |   |   depthmap.py
