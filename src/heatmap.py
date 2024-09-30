@@ -51,11 +51,13 @@ def removeBiasISigma(image):
     return image - image_blurred
 
 
-def plotSingleResult(Zkf, Ztrue, pathname, title=None):
+
+def plotSingleResult(Zkf, Ztrue, pathname, title=None, vmax=None, vmin=None):
 
     fig = plt.figure(figsize=(5, 5), dpi=100)
 
     Zkfplot_N = fig.add_subplot(1, 1, 1)
+    Zkfplot_N.plot(WORKING_RANGE, WORKING_RANGE, c="white")
     heatmap, xedges, yedges = np.histogram2d(
         Ztrue.flatten(), Zkf.flatten(), bins=97, range=HEATMAP_RANGE
     )
@@ -68,18 +70,20 @@ def plotSingleResult(Zkf, Ztrue, pathname, title=None):
         origin="lower",
         # , vmax=vmax, vmin=0
     )
+    if vmax is not None and vmin is not None:
+        ZkfHist.set_clim(vmin=vmin, vmax=vmax)
     fig.colorbar(ZkfHist, ax=Zkfplot_N, fraction=0.046, pad=0.04)
-    Zkfplot_N.plot(WORKING_RANGE, WORKING_RANGE, c="white")
     Zkfplot_N.set_xlabel("True Depth (m)")
     Zkfplot_N.set_ylabel("Estimated Depth (m)")
-    if title is not None:
-        Zkfplot_N.set_title(title)
 
     fig.tight_layout()
     plt.savefig(pathname)
     plt.close(fig)
 
-    return heatmap
+    vmax = np.max(heatmap)
+    vmin = np.min(heatmap)
+
+    return heatmap, vmax, vmin
 
 
 def getDepthMap(
@@ -275,10 +279,6 @@ def getHeatmapByLUT(params, filepath, indexes):
             os.makedirs(outputPath)
         outputPath += "/"
 
-        texture_position = (
-            np.array([[500, 900], [800, 1200]], dtype=np.int64) / binning_windowSize
-        ).astype(np.int64)
-
         if not os.path.exists(outputPath + "savedData.pkl"):
             savedData = []
             for i in range(len(dataDicts)):
@@ -300,27 +300,15 @@ def getHeatmapByLUT(params, filepath, indexes):
                     np.float64
                 )
 
-                imgSigmaPlus = getImageWindow(
-                    getBinningImagesFast(imgSigmaPlus, binning_windowSize),
-                    texture_position,
-                )
-                imgSigmaMinus = getImageWindow(
-                    getBinningImagesFast(imgSigmaMinus, binning_windowSize),
-                    texture_position,
-                )
+                imgSigmaPlus = getBinningImagesFast(imgSigmaPlus, binning_windowSize)
+                imgSigmaMinus = getBinningImagesFast(imgSigmaMinus, binning_windowSize)
 
                 # Brightness Alignment
                 imgSigmaPlus = imgSigmaPlus * ((Sigma / SigmaPlus) ** 2)
                 imgSigmaMinus = imgSigmaMinus * ((Sigma / SigmaMinus) ** 2)
 
-                imgrhoPlus = getImageWindow(
-                    getBinningImagesFast(images[rhoPlusIndex], binning_windowSize),
-                    texture_position,
-                )
-                imgrhoMinus = getImageWindow(
-                    getBinningImagesFast(images[rhoMinusIndex], binning_windowSize),
-                    texture_position,
-                )
+                imgrhoPlus = getBinningImagesFast(images[rhoPlusIndex], binning_windowSize)
+                imgrhoMinus = getBinningImagesFast(images[rhoMinusIndex], binning_windowSize)
 
                 imgSigma = removeBiasISigma(imgSigmaPlus - imgSigmaMinus)
                 imgrho = removeBiasISigma(imgrhoPlus - imgrhoMinus)
@@ -335,12 +323,7 @@ def getHeatmapByLUT(params, filepath, indexes):
 
                 fig = plt.figure(figsize=(20, 20), dpi=100)
                 ax = fig.add_subplot(1, 1, 1)
-                plot = ax.imshow(
-                    getImageWindow(
-                        getBinningImagesFast(imgSigmaPlus, binning_windowSize),
-                        texture_position,
-                    )
-                )
+                plot = ax.imshow(imgSigmaPlus)
                 ax.set_title("Texture Area, Location:%.0f" % loc)
                 fig.colorbar(plot, ax=ax, fraction=0.046, pad=0.04)
                 fig.savefig(outputPath + "OutputFigure%d.png" % i)
@@ -453,7 +436,21 @@ def getHeatmapByLUT(params, filepath, indexes):
 
 
 def main():
+    # Example code
+    # This code is based on "depthmap.py"
+    # You can write your own heatmap code with the dataset
+    params = {
+        "rho0": 8.9,
+        "Sigma": 0.0025,
+        "delta_rho": 0.06,
+        "delta_Sigma": 0.0010,
+        "sensorDistance": 0.1100,
+        "photon_per_brightness_level": 120,
+    }
 
+    getHeatmapByLUT(
+        params, "./data/Motorized_LinearSlide_Texture5_NewParameter.pkl", [0, 1, 2]
+    )
     return
 
 
