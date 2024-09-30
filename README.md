@@ -91,7 +91,7 @@ params = {
 }
 ```
 ### 1.3 Depth Sensing Accuracy Evaluation
-Please run the following prompts to obtain a heatmap that indicate the accuracy of depth sensing, as shown in Figure XX in the paper. We used to evaluate the method by a fronto parallel texture. You can write your own code based on **depthmap.py**.
+Please run the following prompts to obtain a heatmap that indicate the accuracy of depth sensing, as shown in Figure 10 in the [paper](https://arxiv.org/abs/2409.10725). We used to evaluate the method by a fronto parallel texture. You can write your own code based on **depthmap.py**.
 ```
 python ./src/heatmap.py
 ```
@@ -100,13 +100,13 @@ python ./src/heatmap.py
 
 ### 2.1 Depth Maps
 
-You can obtain the third column (Proposed).
+If you follow operations in section 1.2 and run the script with our dataset, you can obtain the third column (Proposed) in the following figure.
 
 <p align="center">
   <img src="./img/Result.png">
 </p>
 
-Depth maps of real scenes. A reference depth map for each scene estimated from manual measurement is provided in the second column. We compare the proposed method, Focal Track~\citep{guo2017focal}, and DfDW~\citep{tang2017depth} under two different working ranges, corresponding to offset optical power $\rho = 10.7\;\text{dpt}$ (a-d) and $10.1\;\text{dpt}$ (e-h). All methods use the same optical parameters and receptive field for each scene. Each depth map is filtered by the method's confidence metric. We set a constant confidence threshold for each method, $C_{\text{thre}} = 0.25, 0.7, 2500$ for ours, Focal Track, and DfDW so that the sparsity of each method's depth map is similar. The abnormal predictions of DfDW (red pixels) are due to the PSF being larger than the receptive field. The number listed in each depth map is the MAE (cm) of the confident depth predictions compared to the reference depth map. The proposed method consistently generates the most accurate depth maps while costing considerably less computation than the other two.
+Depth maps of real scenes. A reference depth map for each scene estimated from manual measurement is provided in the second column. We compare the proposed method, [Focal Track](https://vision.seas.harvard.edu/focaltrack/), and [DfDW](https://www.dgp.toronto.edu/WildDFD/) under two different working ranges, corresponding to offset optical power $\rho = 10.7\;\text{dpt}$ (a-d) and $10.1\;\text{dpt}$ (e-h). All methods use the same optical parameters and receptive field for each scene. Each depth map is filtered by the method's confidence metric. We set a constant confidence threshold for each method, $C_{\text{thre}} = 0.25, 0.7, 2500$ for ours, Focal Track, and DfDW so that the sparsity of each method's depth map is similar. The abnormal predictions of DfDW (red pixels) are due to the PSF being larger than the receptive field. The number listed in each depth map is the MAE (cm) of the confident depth predictions compared to the reference depth map. The proposed method consistently generates the most accurate depth maps while costing considerably less computation than the other two.
 
 ### 2.2 Heatmap
 
