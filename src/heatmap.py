@@ -51,7 +51,6 @@ def removeBiasISigma(image):
     return image - image_blurred
 
 
-
 def plotSingleResult(Zkf, Ztrue, pathname, title=None, vmax=None, vmin=None):
 
     fig = plt.figure(figsize=(5, 5), dpi=100)
@@ -232,7 +231,7 @@ def applyLUT(ratios, LUT):
     return Z_pred
 
 
-def getHeatmapByLUT(params, filepath, indexes):
+def getMAEByLUT(params, filepath, indexes, botIndex=None, upIndex=None):
     SigmaPlusIndex = 2
     SigmaMinusIndex = 0
     SigmaIndex = 1
@@ -240,16 +239,14 @@ def getHeatmapByLUT(params, filepath, indexes):
     rhoMinusIndex = indexes[0]
     rhoIndex = indexes[1]
 
-    ksize = 1
-    ksizes = [3, 5, 7, 9, 11, 13, 15, 17]
-    ktype = "None"
     binning_windowSize = 1
     confidenceLevels = [0, 0.5, 0.9, 0.95, 0.99]
-    confidenceTypes = ["C2"]
-    xKernel = np.array([[-0.5, 0, 0.5]])
-    yKernel = np.array([[-0.5], [0], [0.5]])
 
     dataDicts = pickle.load(open(filepath, "rb"))
+    dataDicts_extra = pickle.load(
+        open("./data/Motorized_LinearSlide_Texture5_NewParameter_Extend3.pkl", "rb")
+    )
+    dataDicts = dataDicts + dataDicts_extra
 
     rhoMinus = dataDicts[0][SigmaIndex][rhoMinusIndex]["OP"]
     rhoPlus = dataDicts[0][SigmaIndex][rhoPlusIndex]["OP"]
@@ -274,7 +271,9 @@ def getHeatmapByLUT(params, filepath, indexes):
     print("Current file:", filename)
 
     for binning_windowSize in [4]:
-        outputPath = "./" + filename + "_LUT_binning_windowSize%d" % binning_windowSize
+        outputPath = (
+            "./MAE_COD_LUT_" + filename + "_binning_windowSize%d" % binning_windowSize
+        )
         if not os.path.exists(outputPath):
             os.makedirs(outputPath)
         outputPath += "/"
@@ -307,19 +306,15 @@ def getHeatmapByLUT(params, filepath, indexes):
                 imgSigmaPlus = imgSigmaPlus * ((Sigma / SigmaPlus) ** 2)
                 imgSigmaMinus = imgSigmaMinus * ((Sigma / SigmaMinus) ** 2)
 
-                imgrhoPlus = getBinningImagesFast(images[rhoPlusIndex], binning_windowSize)
-                imgrhoMinus = getBinningImagesFast(images[rhoMinusIndex], binning_windowSize)
+                imgrhoPlus = getBinningImagesFast(
+                    images[rhoPlusIndex], binning_windowSize
+                )
+                imgrhoMinus = getBinningImagesFast(
+                    images[rhoMinusIndex], binning_windowSize
+                )
 
                 imgSigma = removeBiasISigma(imgSigmaPlus - imgSigmaMinus)
                 imgrho = removeBiasISigma(imgrhoPlus - imgrhoMinus)
-
-                ZMap, CMap, LSratio = getDepthMap(
-                    imgrho,
-                    0,
-                    imgSigma,
-                    0,
-                    params,
-                )
 
                 fig = plt.figure(figsize=(20, 20), dpi=100)
                 ax = fig.add_subplot(1, 1, 1)
@@ -328,6 +323,14 @@ def getHeatmapByLUT(params, filepath, indexes):
                 fig.colorbar(plot, ax=ax, fraction=0.046, pad=0.04)
                 fig.savefig(outputPath + "OutputFigure%d.png" % i)
                 plt.close(fig)
+
+                ZMap, CMap, LSratio = getDepthMap(
+                    imgrho,
+                    0,
+                    imgSigma,
+                    0,
+                    params,
+                )
 
                 TempParams = params.copy()
                 TempParams["depth"] = 0.93 + loc * 4e-7
@@ -351,7 +354,11 @@ def getHeatmapByLUT(params, filepath, indexes):
         Z_true = []
         conf = []
         Z_cal = []
-        for i in range(len(savedData)):
+        if upIndex is None or botIndex is None:
+            upIndex = len(savedData)
+            botIndex = 0
+
+        for i in range(botIndex, upIndex):
             (
                 loc,
                 imgrho,
@@ -371,66 +378,141 @@ def getHeatmapByLUT(params, filepath, indexes):
         conf = np.stack(conf).flatten()
         Z_cal = np.stack(Z_cal).flatten()
 
-        LUT = createLUT(ratios, Z_true, display_LUT=False)
+        filtered_ratios = filterResultByConfidenceSparsity(ratios, conf, 0)
+        LUT = createLUT(
+            filtered_ratios[~np.isnan(filtered_ratios)],
+            Z_true[~np.isnan(filtered_ratios)],
+            display_LUT=False,
+        )
 
-        for confLevel in confidenceLevels:
+        errors = []
+        for confidenceLevel in confidenceLevels:
             filterIdx = filterResultByConfidenceSparsity(
-                np.ones_like(conf), conf, confLevel
+                np.ones_like(conf), conf, confidenceLevel
             )
-            ratios_filtered = ratios[~np.isnan(filterIdx)]
-            Z_true_filtered = Z_true[~np.isnan(filterIdx)]
-            Z_cal_filtered = Z_cal[~np.isnan(filterIdx)]
 
-            # apply LUT
-            Z_pred_filtered = applyLUT(ratios_filtered, LUT)
+            Z_pred = applyLUT(ratios, LUT)
+            Z_pred_filtered = Z_pred.copy()
+            Z_pred_filtered[np.isnan(filterIdx)] = np.nan
+            Z_cal_filtered = Z_cal.copy()
+            Z_cal_filtered[np.isnan(filterIdx)] = np.nan
 
-            cal_heatmap, vmin, vmax = plotSingleResult(
-                Z_cal_filtered,
-                Z_true_filtered,
-                outputPath + f"Calculation_{confLevel:.2f}.png",
-                None,
+            Z_error = Z_pred_filtered
+
+            current_error = np.nanmean(
+                np.abs(
+                    np.array(Z_error).reshape(upIndex - botIndex, -1)
+                    - np.array(Z_true).reshape(upIndex - botIndex, -1)
+                ),
+                axis=-1,
+            )
+            current_meanDepth = np.nanmean(
+                np.array(Z_error).reshape(upIndex - botIndex, -1), axis=-1
+            )
+            current_meanDifference = np.nanmean(
+                np.abs(
+                    np.array(Z_error).reshape(upIndex - botIndex, -1)
+                    - np.repeat(current_meanDepth, 10000).reshape(
+                        upIndex - botIndex, -1
+                    )
+                ),
+                axis=-1,
+            )
+            errors.append(
+                [
+                    confidenceLevel,
+                    current_error,
+                    current_meanDepth,
+                    current_meanDifference,
+                ]
             )
 
             plotSingleResult(
-                Z_pred_filtered,
-                Z_true_filtered,
-                outputPath + f"LUT_{confLevel:.2f}.png",
-                None,
-                vmin,
-                vmax,
+                np.array(Z_pred_filtered),
+                np.array(Z_true),
+                outputPath + "LUT%.2f.png" % (confidenceLevel),
             )
-
-            # Filter by depth
-            Z_cal_filtered_per_depth = []
-            Z_true_filtered_per_depth = []
-            for i in range(len(savedData)):
-                (
-                    loc,
-                    imgrho,
-                    imgSigma,
-                    ZMap,
-                    CMap,
-                    LSratio,
-                    TempParams,
-                ) = savedData[i]
-                Z_cal_filtered_per_depth.append(
-                    filterResultByConfidenceSparsity(ZMap, CMap, confLevel)
-                )
-                Z_true_filtered_per_depth.append(
-                    np.ones(Z_cal_filtered_per_depth[-1].shape) * TempParams["depth"]
-                )
-
-            Z_cal_filtered_per_depth = np.stack(Z_cal_filtered_per_depth).flatten()
-            Z_true_filtered_per_depth = np.stack(Z_true_filtered_per_depth).flatten()
 
             plotSingleResult(
-                Z_cal_filtered_per_depth,
-                Z_true_filtered_per_depth,
-                outputPath + f"Per_depth_filtering_{confLevel:.2f}.png",
-                None,
-                vmin,
-                vmax,
+                np.array(Z_cal_filtered),
+                np.array(Z_true),
+                outputPath + "hist%.2f.png" % (confidenceLevel),
             )
+
+    return errors
+
+
+def plotWorkingArea(errors, working_range=WORKING_RANGE):
+    font = {
+        "size": 32,
+    }
+    matplotlib.rc("font", **font)
+
+    fig = plt.figure(figsize=(12, 12), dpi=100)
+    ax = fig.add_subplot(1, 1, 1)
+
+    plot_range = np.linspace(0.45, 1.81, 100)
+
+    ax.set_xlim(0.45, 1.81)
+    ax.set_ylim(0.45, 1.81)
+
+    ax.plot(
+        plot_range,
+        plot_range,
+        linewidth=1,
+        color="black",
+    )
+
+    ax.plot(
+        plot_range,
+        plot_range * 1.1,
+        linewidth=1,
+        color="black",
+        linestyle="dashed",
+    )
+
+    ax.plot(
+        plot_range,
+        plot_range * 0.9,
+        linewidth=1,
+        color="black",
+        linestyle="dashed",
+    )
+
+    colors = ["red", "green", "blue"]
+
+    for i in range(3):
+        [
+            confidenceLevel,
+            current_error,
+            current_meanDepth,
+            current_meanDifference,
+        ] = errors[i]
+
+        sort_index = np.argsort(working_range)
+        sorted_working_range = working_range[sort_index]
+        sorted_current_meanDepth = current_meanDepth[sort_index]
+        sorted_meanDifference = current_meanDifference[sort_index]
+
+        ax.plot(
+            sorted_working_range, sorted_current_meanDepth, linewidth=1, color=colors[i]
+        )
+
+        ax.fill_between(
+            sorted_working_range,
+            (sorted_current_meanDepth + sorted_meanDifference),
+            (sorted_current_meanDepth - sorted_meanDifference),
+            color=colors[i],
+            alpha=0.2,
+        )
+
+    ax.set_xlabel("Depth (m)")
+    ax.set_ylabel("Predicted Depth (m)")
+
+    ax.grid()
+    # ax.legend()
+    fig.tight_layout()
+    plt.show()
 
     return
 
@@ -448,9 +530,21 @@ def main():
         "photon_per_brightness_level": 120,
     }
 
-    getHeatmapByLUT(
+    errors = getMAEByLUT(
         params, "./data/Motorized_LinearSlide_Texture5_NewParameter.pkl", [0, 1, 2]
     )
+
+    with open("./errors_COD_extra.pkl", "wb") as f:
+        pickle.dump(errors, f)
+        f.close()
+    with open("./errors_COD_extra.pkl", "rb") as f:
+        errors_COD_extra = pickle.load(f)
+        f.close()
+    new_working_range = np.concatenate(
+        [WORKING_RANGE, np.linspace(0.9072, 1.8672, 97)[0:98]], 0
+    )
+    plotWorkingArea(errors_COD_extra, working_range=new_working_range)
+
     return
 
 
